@@ -4,13 +4,14 @@
 #include <unistd.h>
 #include <termios.h>
 #include <fcntl.h>
+#include <stdbool.h>
 
 #define MIN_X 1
 #define MAX_X 79
 #define MIN_Y 1
 #define MAX_Y 23
 #define RAQUETE_SIZE 10
-#define NUMERO_DE_TIJOLOS 20
+#define NUMERO_DE_TIJOLOS 25
 
 typedef struct {
     double x;
@@ -29,8 +30,9 @@ typedef struct Tijolo {
 Objeto raquete;
 Objeto bola;
 Tijolo *tijolos = NULL;
-
-int placar = 0; 
+int placar = 0;
+double velocidadeBola = 0.6;
+int highScore = 0;
 
 int kbhit() {
     struct termios oldt, newt;
@@ -53,6 +55,7 @@ int kbhit() {
         ungetc(ch, stdin);
         return 1;
     }
+
     return 0;
 }
 
@@ -66,6 +69,7 @@ void inicializarTijolos() {
         tijolos = novo;
     }
 }
+
 void liberarTijolos() {
     while (tijolos != NULL) {
         Tijolo *temp = tijolos;
@@ -73,28 +77,30 @@ void liberarTijolos() {
         free(temp);
     }
 }
+
 void updateTela() {
     system("clear");
 }
+
 void timerEspera() {
-    usleep(30000); 
+    usleep(30000);
 }
 
 void moverRaquete() {
     if (kbhit()) {
         int ch = getchar();
-        if (ch == '\033') { 
+        if (ch == '\033') {
             getchar(); 
             switch(getchar()) { 
-                case 'C':
+                case 'C': 
                     if (raquete.x < MAX_X - RAQUETE_SIZE - 1) {
-                        printf("\033[%d;%dH          ", (int)raquete.y, (int)raquete.x); 
-                        raquete.x += 4;
+                        printf("\033[%d;%dH          ", (int)raquete.y, (int)raquete.x);
+                        raquete.x += 4; 
                     }
                     break;
                 case 'D': 
                     if (raquete.x > MIN_X + 2) {
-                        printf("\033[%d;%dH          ", (int)raquete.y, (int)raquete.x); 
+                        printf("\033[%d;%dH          ", (int)raquete.y, (int)raquete.x);
                         raquete.x -= 4; 
                     }
                     break;
@@ -115,6 +121,7 @@ void moverBola() {
     if (bola.y <= MIN_Y || bola.y >= MAX_Y) {
         bola.velY *= -1;
     }
+
     if (bola.y == raquete.y - 1 && bola.x >= raquete.x && bola.x <= raquete.x + RAQUETE_SIZE - 1) {
         bola.velY *= -1;
         if (bola.x < raquete.x || bola.x > raquete.x + RAQUETE_SIZE - 1) {
@@ -128,8 +135,7 @@ void moverBola() {
         if (bola.x >= atual->x && bola.x <= atual->x + 1 && bola.y >= atual->y && bola.y <= atual->y + 1) {
             atual->durabilidade--;
             if (atual->durabilidade == 0) {
-                placar += 5; 
-
+                placar += 5;
                 if (anterior == NULL) {
                     Tijolo *temp = atual;
                     atual = atual->prox;
@@ -140,52 +146,121 @@ void moverBola() {
                     free(atual);
                     atual = anterior->prox;
                 }
+
                 bola.velY *= -1;
+                velocidadeBola += 0.1;
                 break;
             }
         }
         anterior = atual;
         atual = atual->prox;
     }
+
     printf("\033[%d;%dHo", (int)bola.y, (int)bola.x);
+}
+
+void printarPlacar() {
+    printf("\033[1;%dHPlacar: %d\033[K", MAX_X / 2 - 3, placar);
+}
+
+void salvarHighScore() {
+    FILE *arquivo = fopen("highscore.txt", "w");
+    if (arquivo != NULL) {
+        fprintf(arquivo, "%d", highScore);
+        fclose(arquivo);
+    }
+}
+
+void carregarHighScore() {
+    FILE *arquivo = fopen("highscore.txt", "r");
+    if (arquivo != NULL) {
+        fscanf(arquivo, "%d", &highScore);
+        fclose(arquivo);
+    }
+}
+
+void verificarHighScore() {
+    if (placar > highScore) {
+        highScore = placar;
+        salvarHighScore();
+    }
 }
 
 int main(void) {
     srand(time(NULL));
-    raquete.x = MAX_X / 2 - RAQUETE_SIZE / 2;
-    raquete.y = MAX_Y - 1;
-
-    bola.x = MAX_X / 2;
-    bola.y = MAX_Y - 2;
-    bola.velX = 0.6; 
-    bola.velY = -0.3;
-
-    inicializarTijolos();
-    updateTela();
+    carregarHighScore();
+    bool recomecar = false;
 
     while (1) {
+        raquete.x = MAX_X / 2 - RAQUETE_SIZE / 2;
+        raquete.y = MAX_Y - 1;
 
-        moverRaquete();
-        moverBola();
-        printf("\033[%d;%dH==========", (int)raquete.y, (int)raquete.x);
+        bola.x = MAX_X / 2;
+        bola.y = MAX_Y - 2;
+        bola.velX = 0.6;
+        bola.velY = -0.3;
 
-        Tijolo *atual = tijolos;
-        while (atual != NULL) {
-            if (atual->durabilidade > 0) {
-                printf("\033[%d;%dH[]", (int)atual->y, (int)atual->x);
+        placar = 0;
+        velocidadeBola = 0.6;
+
+        inicializarTijolos();
+        updateTela();
+        printarPlacar();
+
+        while (!recomecar) {
+            while (1) {
+                moverRaquete();
+                moverBola();
+
+                printf("\033[%d;%dH==========", (int)raquete.y, (int)raquete.x);
+
+                Tijolo *atual = tijolos;
+                while (atual != NULL) {
+                    if (atual->durabilidade > 0) {
+                        printf("\033[%d;%dH[]", (int)atual->y, (int)atual->x);
+                    }
+                    atual = atual->prox;
+                }
+
+                printarPlacar();
+
+                if (tijolos == NULL) {
+                    printf("\033[%d;%dHVocê venceu! Placar: %d\n", MAX_Y / 2, MAX_X / 2 - 15, placar);
+                    verificarHighScore();
+                    printf("\033[%d;%dHHigh Score: %d\n", MAX_Y / 2 + 1, MAX_X / 2 - 15, highScore);
+                    printf("\033[%d;%dHPressione R para recomeçar\n", MAX_Y / 2 + 2, MAX_X / 2 - 15);
+                    break;
+                }
+
+                if (bola.y >= MAX_Y - 1) {
+                    printf("\033[%d;%dHGAME OVER Placar: %d\n", MAX_Y / 2, MAX_X / 2 - 15, placar);
+                    verificarHighScore();
+                    printf("\033[%d;%dHHigh Score: %d\n", MAX_Y / 2 + 1, MAX_X / 2 - 15, highScore);
+                    printf("\033[%d;%dHPressione R para recomeçar\n", MAX_Y / 2 + 2, MAX_X / 2 - 15);
+                    break;
+                }
+
+                timerEspera();
             }
-            atual = atual->prox;
+
+            while (1) {
+                if (kbhit()) {
+                    char ch = getchar();
+                    if (ch == 'r' || ch == 'R') {
+                        recomecar = true;
+                        break;
+                    }
+                }
+            }
+
+            if (recomecar) {
+                recomecar = false;
+                liberarTijolos();
+                break;
+            }
         }
-        if (tijolos == NULL) {
-            printf("\033[%d;%dHVocê venceu! Placar: %d\n", MAX_Y / 2, MAX_X / 2 - 15, placar);
-            break;
-        }
-        if (bola.y >= MAX_Y - 1) {
-            printf("\033[%d;%dHGAME OVER Placar: %d\n", MAX_Y / 2, MAX_X / 2 - 15, placar);
-            break;
-        }
-        timerEspera();
     }
+
     liberarTijolos();
     return 0;
 }
