@@ -2,12 +2,14 @@
 #include <stdlib.h>
 #include <time.h>
 #include <unistd.h>
-#include <sys/select.h>  
+#include <termios.h>
+#include <fcntl.h>
 
 #define MIN_X 1
 #define MAX_X 79
 #define MIN_Y 1
 #define MAX_Y 23
+#define RAQUETE_SIZE 10
 #define NUMERO_DE_TIJOLOS 20
 
 typedef struct {
@@ -17,64 +19,93 @@ typedef struct {
     double velY;
 } Objeto;
 
-typedef struct {
+typedef struct Tijolo {
     double x;
     double y;
     int durabilidade;
+    struct Tijolo *prox;
 } Tijolo;
 
 Objeto raquete;
 Objeto bola;
-Tijolo Tijolos[NUMERO_DE_TIJOLOS];
+Tijolo *tijolos = NULL;
 
-#ifdef _WIN32
-#include <conio.h>
-#include <windows.h>
-#define CLEAR_SCREEN() system("cls")
-#else
-#include <unistd.h>
-#define CLEAR_SCREEN() printf("\033[H\033[J")
-#endif
+int placar = 0; 
 
 int kbhit() {
-    struct timeval tv;
-    fd_set fds;
-    tv.tv_sec = 0;
-    tv.tv_usec = 0;
-    FD_ZERO(&fds);
-    FD_SET(STDIN_FILENO, &fds);
-    select(STDIN_FILENO + 1, &fds, NULL, NULL, &tv);
-    return FD_ISSET(STDIN_FILENO, &fds);
+    struct termios oldt, newt;
+    int ch;
+    int oldf;
+
+    tcgetattr(STDIN_FILENO, &oldt);
+    newt = oldt;
+    newt.c_lflag &= ~(ICANON | ECHO);
+    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+    oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
+    fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK);
+
+    ch = getchar();
+
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+    fcntl(STDIN_FILENO, F_SETFL, oldf);
+
+    if(ch != EOF) {
+        ungetc(ch, stdin);
+        return 1;
+    }
+    return 0;
 }
 
+void inicializarTijolos() {
+    for (int i = 0; i < NUMERO_DE_TIJOLOS; i++) {
+        Tijolo *novo = (Tijolo*)malloc(sizeof(Tijolo));
+        novo->x = 5 + i % 15 * 5;
+        novo->y = 5 + i / 15 * 2;
+        novo->durabilidade = 1;
+        novo->prox = tijolos;
+        tijolos = novo;
+    }
+}
+void liberarTijolos() {
+    while (tijolos != NULL) {
+        Tijolo *temp = tijolos;
+        tijolos = tijolos->prox;
+        free(temp);
+    }
+}
 void updateTela() {
-    CLEAR_SCREEN();
+    system("clear");
 }
-
 void timerEspera() {
-#ifdef _WIN32
-    Sleep(100); 
-#else
-    usleep(100000); 
-#endif
+    usleep(30000); 
 }
 
 void moverRaquete() {
     if (kbhit()) {
-#ifdef _WIN32
-        char ch = _getch();
-#else
-        char ch = getchar();
-#endif
-        if (ch == 'a' && raquete.x > MIN_X + 2) {
-            raquete.x -= 2;
-        } else if (ch == 'd' && raquete.x < MAX_X - 5) {
-            raquete.x += 2;
+        int ch = getchar();
+        if (ch == '\033') { 
+            getchar(); 
+            switch(getchar()) { 
+                case 'C':
+                    if (raquete.x < MAX_X - RAQUETE_SIZE - 1) {
+                        printf("\033[%d;%dH          ", (int)raquete.y, (int)raquete.x); 
+                        raquete.x += 4;
+                    }
+                    break;
+                case 'D': 
+                    if (raquete.x > MIN_X + 2) {
+                        printf("\033[%d;%dH          ", (int)raquete.y, (int)raquete.x); 
+                        raquete.x -= 4; 
+                    }
+                    break;
+            }
         }
     }
 }
 
 void moverBola() {
+    printf("\033[%d;%dH ", (int)bola.y, (int)bola.x);
+
     bola.x += bola.velX;
     bola.y += bola.velY;
 
@@ -84,73 +115,77 @@ void moverBola() {
     if (bola.y <= MIN_Y || bola.y >= MAX_Y) {
         bola.velY *= -1;
     }
-    if (bola.y == raquete.y - 1 && bola.x >= raquete.x && bola.x <= raquete.x + 5) {
+    if (bola.y == raquete.y - 1 && bola.x >= raquete.x && bola.x <= raquete.x + RAQUETE_SIZE - 1) {
         bola.velY *= -1;
-    }
-
-    for (int i = 0; i < NUMERO_DE_TIJOLOS; i++) {
-        Tijolo *Tijolo = &Tijolos[i];
-        if (Tijolo->durabilidade > 0 && bola.x >= Tijolo->x && bola.x <= Tijolo->x + 1 && bola.y >= Tijolo->y && bola.y <= Tijolo->y + 1) {
-            Tijolo->durabilidade--;
-            if (Tijolo->durabilidade == 0) {
-                bola.velY *= -1;
-            }
+        if (bola.x < raquete.x || bola.x > raquete.x + RAQUETE_SIZE - 1) {
+            bola.y--;
         }
     }
-}
 
-void printarObjeto(double nextX, double nextY, char *objeto) {
-    printf("\033[%d;%dH%s", (int)nextY, (int)nextX, objeto);
+    Tijolo *atual = tijolos;
+    Tijolo *anterior = NULL;
+    while (atual != NULL) {
+        if (bola.x >= atual->x && bola.x <= atual->x + 1 && bola.y >= atual->y && bola.y <= atual->y + 1) {
+            atual->durabilidade--;
+            if (atual->durabilidade == 0) {
+                placar += 5; 
+
+                if (anterior == NULL) {
+                    Tijolo *temp = atual;
+                    atual = atual->prox;
+                    tijolos = atual;
+                    free(temp);
+                } else {
+                    anterior->prox = atual->prox;
+                    free(atual);
+                    atual = anterior->prox;
+                }
+                bola.velY *= -1;
+                break;
+            }
+        }
+        anterior = atual;
+        atual = atual->prox;
+    }
+    printf("\033[%d;%dHo", (int)bola.y, (int)bola.x);
 }
 
 int main(void) {
     srand(time(NULL));
-    raquete.x = MAX_X / 2;
+    raquete.x = MAX_X / 2 - RAQUETE_SIZE / 2;
     raquete.y = MAX_Y - 1;
 
     bola.x = MAX_X / 2;
     bola.y = MAX_Y - 2;
-    bola.velX = 0.2;
-    bola.velY = -0.1;
+    bola.velX = 0.6; 
+    bola.velY = -0.3;
 
-    for (int i = 0; i < NUMERO_DE_TIJOLOS; i++) {
-        Tijolos[i].x = 5 + i % 15 * 5;
-        Tijolos[i].y = 5 + i / 15 * 2;
-        Tijolos[i].durabilidade = 1;
-    }
+    inicializarTijolos();
     updateTela();
 
     while (1) {
+
         moverRaquete();
         moverBola();
+        printf("\033[%d;%dH==========", (int)raquete.y, (int)raquete.x);
 
-        printarObjeto(raquete.x, raquete.y, "=====");
-        printarObjeto(bola.x, bola.y, "o");
-
-        for (int i = 0; i < NUMERO_DE_TIJOLOS; i++) {
-            Tijolo *Tijolo = &Tijolos[i];
-            if (Tijolo->durabilidade > 0) {
-                printarObjeto(Tijolo->x, Tijolo->y, "[]");
+        Tijolo *atual = tijolos;
+        while (atual != NULL) {
+            if (atual->durabilidade > 0) {
+                printf("\033[%d;%dH[]", (int)atual->y, (int)atual->x);
             }
+            atual = atual->prox;
         }
-
-        int tijolosEsquerda = 0;
-        for (int i = 0; i < NUMERO_DE_TIJOLOS; i++) {
-            if (Tijolos[i].durabilidade > 0) {
-                tijolosEsquerda++;
-            }
-        }
-        if (tijolosEsquerda == 0) {
-            printarObjeto(MAX_X / 2 - 5, MAX_Y / 2, "Você venceu!");
+        if (tijolos == NULL) {
+            printf("\033[%d;%dHVocê venceu! Placar: %d\n", MAX_Y / 2, MAX_X / 2 - 15, placar);
             break;
         }
-
         if (bola.y >= MAX_Y - 1) {
-            printarObjeto(MAX_X / 2 - 5, MAX_Y / 2, "GAME OVER");
+            printf("\033[%d;%dHGAME OVER Placar: %d\n", MAX_Y / 2, MAX_X / 2 - 15, placar);
             break;
         }
-        updateTela();
         timerEspera();
     }
+    liberarTijolos();
     return 0;
 }
