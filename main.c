@@ -1,10 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#include <unistd.h>
-#include <termios.h>
-#include <fcntl.h>
-#include <stdbool.h>
+#include "timer.h"
+#include "keyboard.h"
+#include "screen.h"
 
 #define MIN_X 1
 #define MAX_X 79
@@ -34,31 +33,6 @@ int placar = 0;
 double velocidadeBola = 0.6;
 int highScore = 0;
 
-int kbhit() {
-    struct termios oldt, newt;
-    int ch;
-    int oldf;
-
-    tcgetattr(STDIN_FILENO, &oldt);
-    newt = oldt;
-    newt.c_lflag &= ~(ICANON | ECHO);
-    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
-    oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
-    fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK);
-
-    ch = getchar();
-
-    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
-    fcntl(STDIN_FILENO, F_SETFL, oldf);
-
-    if(ch != EOF) {
-        ungetc(ch, stdin);
-        return 1;
-    }
-
-    return 0;
-}
-
 void inicializarTijolos() {
     for (int i = 0; i < NUMERO_DE_TIJOLOS; i++) {
         Tijolo *novo = (Tijolo*)malloc(sizeof(Tijolo));
@@ -78,16 +52,8 @@ void liberarTijolos() {
     }
 }
 
-void updateTela() {
-    system("clear");
-}
-
-void timerEspera() {
-    usleep(30000);
-}
-
 void moverRaquete() {
-    if (kbhit()) {
+    if (key_pressed()) {
         int ch = getchar();
         if (ch == '\033') {
             getchar(); 
@@ -146,7 +112,6 @@ void moverBola() {
                     free(atual);
                     atual = anterior->prox;
                 }
-
                 bola.velY *= -1;
                 velocidadeBola += 0.1;
                 break;
@@ -155,7 +120,6 @@ void moverBola() {
         anterior = atual;
         atual = atual->prox;
     }
-
     printf("\033[%d;%dHo", (int)bola.y, (int)bola.x);
 }
 
@@ -204,14 +168,13 @@ int main(void) {
         velocidadeBola = 0.6;
 
         inicializarTijolos();
-        updateTela();
+        clear_screen();
         printarPlacar();
 
         while (!recomecar) {
             while (1) {
                 moverRaquete();
                 moverBola();
-
                 printf("\033[%d;%dH==========", (int)raquete.y, (int)raquete.x);
 
                 Tijolo *atual = tijolos;
@@ -221,14 +184,13 @@ int main(void) {
                     }
                     atual = atual->prox;
                 }
-
                 printarPlacar();
 
                 if (tijolos == NULL) {
                     printf("\033[%d;%dHVocê venceu! Placar: %d\n", MAX_Y / 2, MAX_X / 2 - 15, placar);
                     verificarHighScore();
                     printf("\033[%d;%dHHigh Score: %d\n", MAX_Y / 2 + 1, MAX_X / 2 - 15, highScore);
-                    printf("\033[%d;%dHPressione R para recomeçar\n", MAX_Y / 2 + 2, MAX_X / 2 - 15);
+                    printf("\033[%d;%dHPressione R para recomeçar ou S para sair\n", MAX_Y / 2 + 2, MAX_X / 2 - 15);
                     break;
                 }
 
@@ -236,23 +198,24 @@ int main(void) {
                     printf("\033[%d;%dHGAME OVER Placar: %d\n", MAX_Y / 2, MAX_X / 2 - 15, placar);
                     verificarHighScore();
                     printf("\033[%d;%dHHigh Score: %d\n", MAX_Y / 2 + 1, MAX_X / 2 - 15, highScore);
-                    printf("\033[%d;%dHPressione R para recomeçar\n", MAX_Y / 2 + 2, MAX_X / 2 - 15);
+                    printf("\033[%d;%dHPressione R para recomeçar ou S para sair\n", MAX_Y / 2 + 2, MAX_X / 2 - 15);
                     break;
                 }
 
-                timerEspera();
+                wait_ms(25);
             }
-
             while (1) {
-                if (kbhit()) {
+                if (key_pressed()) {
                     char ch = getchar();
                     if (ch == 'r' || ch == 'R') {
                         recomecar = true;
                         break;
+                    } else if (ch == 's' || ch == 'S') {
+                        liberarTijolos();
+                        return 0;
                     }
                 }
             }
-
             if (recomecar) {
                 recomecar = false;
                 liberarTijolos();
@@ -260,7 +223,6 @@ int main(void) {
             }
         }
     }
-
     liberarTijolos();
     return 0;
 }
