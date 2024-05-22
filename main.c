@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <stdbool.h>
+#include <unistd.h>  
 #include "timer.h"
 #include "keyboard.h"
 #include "screen.h"
@@ -10,7 +12,9 @@
 #define MIN_Y 1
 #define MAX_Y 23
 #define RAQUETE_SIZE 10
-#define NUMERO_DE_TIJOLOS 25
+#define NUMERO_DE_TIJOLOS 45  
+#define FPS 60
+#define FRAME_DELAY (1000 / FPS)
 
 typedef struct {
     double x;
@@ -26,203 +30,184 @@ typedef struct Tijolo {
     struct Tijolo *prox;
 } Tijolo;
 
-Objeto raquete;
-Objeto bola;
+Objeto raquete, bola;
 Tijolo *tijolos = NULL;
-int placar = 0;
-double velocidadeBola = 0.6;
-int highScore = 0;
+int placar = 0, highScore = 0;
+
+void wait_ms(int ms);
+void inicializarTijolos();
+void liberarTijolos();
+void moverRaquete();
+void moverBola();
+void printarPlacar();
+void salvarHighScore();
+void carregarHighScore();
+void verificarHighScore();
+void drawGame();
+
+void inicializar() {
+    screenInit(1);
+    keyboardInit();
+    carregarHighScore();
+    inicializarTijolos();
+    raquete.x = (MAX_X / 2) - (RAQUETE_SIZE / 2);
+    raquete.y = MAX_Y - 2;
+    bola.x = raquete.x + (RAQUETE_SIZE / 2);
+    bola.y = raquete.y - 1;
+    bola.velX = 0.38;
+    bola.velY = -0.38;
+    placar = 0;
+    screenClear();
+}
+
+void finalizar() {
+    liberarTijolos();
+    keyboardDestroy();
+    screenDestroy();
+    salvarHighScore();
+}
+
+void loopJogo() {
+    bool jogoAtivo = true;
+    timerInit(FRAME_DELAY);
+    while (jogoAtivo) {
+        if (timerTimeOver()) {
+            moverRaquete();
+            moverBola();
+            drawGame();
+            if (tijolos == NULL || bola.y >= MAX_Y) {
+                jogoAtivo = false;
+            }
+            timerUpdateTimer(FRAME_DELAY);
+        }
+    }
+}
+
+int main(void) {
+    srand(time(NULL));
+    inicializar();
+    loopJogo();
+    finalizar();
+    printf("Fim do jogo. Placar final: %d\n", placar);
+    return 0;
+}
+
+void drawGame() {
+    screenClear();
+    printarPlacar();
+    printf("\033[%d;%dH", (int)raquete.y, (int)raquete.x);
+    for (int i = 0; i < RAQUETE_SIZE; i++) {
+        printf("=");
+    }
+    printf("\033[%d;%dHo", (int)bola.y, (int)bola.x);
+    Tijolo *current = tijolos;
+    while (current) {
+        if (current->durabilidade > 0) {
+            printf("\033[%d;%dH[]", (int)current->y, (int)current->x);
+        }
+        current = current->prox;
+    }
+    screenUpdate();
+}
+
+void moverBola() {
+    printf("\033[%d;%dH ", (int)bola.y, (int)bola.x);  // Limpar posição anterior
+    bola.x += bola.velX;
+    bola.y += bola.velY;
+
+    if (bola.x <= MIN_X || bola.x >= MAX_X) {
+        bola.velX = -bola.velX;
+    }
+    if (bola.y <= MIN_Y) {
+        bola.velY = -bola.velY;
+    }
+ 
+    if (bola.y == raquete.y - 1 && bola.x >= raquete.x && bola.x <= raquete.x + RAQUETE_SIZE) {
+        bola.velY = -bola.velY;
+    }
+
+    Tijolo *prev = NULL;
+    Tijolo *current = tijolos;
+    while (current) {
+        if (bola.x >= current->x && bola.x <= current->x + 4 && bola.y >= current->y && bola.y <= current->y + 1) {
+            current->durabilidade--;
+            bola.velY = -bola.velY;
+            if (current->durabilidade == 0) {
+                if (prev) {
+                    prev->prox = current->prox;
+                } else {
+                    tijolos = current->prox;
+                }
+                free(current);
+                placar += 5;
+            }
+            break;
+        }
+        prev = current;
+        current = current->prox;
+    }
+}
+
+void moverRaquete() {
+    if (keyhit()) {
+        int ch = readch();
+        if (ch == '\033') { 
+            readch(); 
+            switch (readch()) { 
+                case 'C': 
+                    if (raquete.x < MAX_X - RAQUETE_SIZE) raquete.x += 2;
+                    break;
+                case 'D':
+                    if (raquete.x > MIN_X) raquete.x -= 2;
+                    break;
+            }
+        }
+    }
+}
 
 void inicializarTijolos() {
-    for (int i = 0; i < NUMERO_DE_TIJOLOS; i++) {
-        Tijolo *novo = (Tijolo*)malloc(sizeof(Tijolo));
-        novo->x = 5 + i % 15 * 5;
-        novo->y = 5 + i / 15 * 2;
-        novo->durabilidade = 1;
-        novo->prox = tijolos;
-        tijolos = novo;
+    int linhas = 3;
+    int tijolos_por_linha = (MAX_X - 10) / 5;
+    for (int linha = 0; linha < linhas; linha++) {
+        for (int i = 0; i < tijolos_por_linha; i++) {
+            Tijolo *novo = malloc(sizeof(Tijolo));
+            if (novo) {
+                novo->x = 5 + i * 5;
+                novo->y = 2 + linha * 2;
+                novo->durabilidade = 1;
+                novo->prox = tijolos;
+                tijolos = novo;
+            }
+        }
     }
 }
 
 void liberarTijolos() {
-    while (tijolos != NULL) {
+    while (tijolos) {
         Tijolo *temp = tijolos;
         tijolos = tijolos->prox;
         free(temp);
     }
 }
 
-void moverRaquete() {
-    if (key_pressed()) {
-        int ch = getchar();
-        if (ch == '\033') {
-            getchar(); 
-            switch(getchar()) { 
-                case 'C': 
-                    if (raquete.x < MAX_X - RAQUETE_SIZE - 1) {
-                        printf("\033[%d;%dH          ", (int)raquete.y, (int)raquete.x);
-                        raquete.x += 4; 
-                    }
-                    break;
-                case 'D': 
-                    if (raquete.x > MIN_X + 2) {
-                        printf("\033[%d;%dH          ", (int)raquete.y, (int)raquete.x);
-                        raquete.x -= 4; 
-                    }
-                    break;
-            }
-        }
-    }
-}
-
-void moverBola() {
-    printf("\033[%d;%dH ", (int)bola.y, (int)bola.x);
-
-    bola.x += bola.velX;
-    bola.y += bola.velY;
-
-    if (bola.x <= MIN_X || bola.x >= MAX_X) {
-        bola.velX *= -1;
-    }
-    if (bola.y <= MIN_Y || bola.y >= MAX_Y) {
-        bola.velY *= -1;
-    }
-
-    if (bola.y == raquete.y - 1 && bola.x >= raquete.x && bola.x <= raquete.x + RAQUETE_SIZE - 1) {
-        bola.velY *= -1;
-        if (bola.x < raquete.x || bola.x > raquete.x + RAQUETE_SIZE - 1) {
-            bola.y--;
-        }
-    }
-
-    Tijolo *atual = tijolos;
-    Tijolo *anterior = NULL;
-    while (atual != NULL) {
-        if (bola.x >= atual->x && bola.x <= atual->x + 1 && bola.y >= atual->y && bola.y <= atual->y + 1) {
-            atual->durabilidade--;
-            if (atual->durabilidade == 0) {
-                placar += 5;
-                if (anterior == NULL) {
-                    Tijolo *temp = atual;
-                    atual = atual->prox;
-                    tijolos = atual;
-                    free(temp);
-                } else {
-                    anterior->prox = atual->prox;
-                    free(atual);
-                    atual = anterior->prox;
-                }
-                bola.velY *= -1;
-                velocidadeBola += 0.1;
-                break;
-            }
-        }
-        anterior = atual;
-        atual = atual->prox;
-    }
-    printf("\033[%d;%dHo", (int)bola.y, (int)bola.x);
-}
-
 void printarPlacar() {
-    printf("\033[1;%dHPlacar: %d\033[K", MAX_X / 2 - 3, placar);
-}
-
-void salvarHighScore() {
-    FILE *arquivo = fopen("highscore.txt", "w");
-    if (arquivo != NULL) {
-        fprintf(arquivo, "%d", highScore);
-        fclose(arquivo);
-    }
+    printf("\033[%d;%dHPlacar: %d", 0, 0, placar); 
 }
 
 void carregarHighScore() {
-    FILE *arquivo = fopen("highscore.txt", "r");
-    if (arquivo != NULL) {
-        fscanf(arquivo, "%d", &highScore);
-        fclose(arquivo);
+    FILE *file = fopen("highscore.txt", "r");
+    if (file) {
+        fscanf(file, "%d", &highScore);
+        fclose(file);
+    } else {
+        highScore = 0; 
     }
 }
 
-void verificarHighScore() {
-    if (placar > highScore) {
-        highScore = placar;
-        salvarHighScore();
+void salvarHighScore() {
+    FILE *file = fopen("highscore.txt", "w");
+    if (file) {
+        fprintf(file, "%d", highScore);
+        fclose(file);
     }
-}
-
-int main(void) {
-    srand(time(NULL));
-    carregarHighScore();
-    bool recomecar = false;
-
-    while (1) {
-        raquete.x = MAX_X / 2 - RAQUETE_SIZE / 2;
-        raquete.y = MAX_Y - 1;
-
-        bola.x = MAX_X / 2;
-        bola.y = MAX_Y - 2;
-        bola.velX = 0.6;
-        bola.velY = -0.3;
-
-        placar = 0;
-        velocidadeBola = 0.6;
-
-        inicializarTijolos();
-        clear_screen();
-        printarPlacar();
-
-        while (!recomecar) {
-            while (1) {
-                moverRaquete();
-                moverBola();
-                printf("\033[%d;%dH==========", (int)raquete.y, (int)raquete.x);
-
-                Tijolo *atual = tijolos;
-                while (atual != NULL) {
-                    if (atual->durabilidade > 0) {
-                        printf("\033[%d;%dH[]", (int)atual->y, (int)atual->x);
-                    }
-                    atual = atual->prox;
-                }
-                printarPlacar();
-
-                if (tijolos == NULL) {
-                    printf("\033[%d;%dHVocê venceu! Placar: %d\n", MAX_Y / 2, MAX_X / 2 - 15, placar);
-                    verificarHighScore();
-                    printf("\033[%d;%dHHigh Score: %d\n", MAX_Y / 2 + 1, MAX_X / 2 - 15, highScore);
-                    printf("\033[%d;%dHPressione R para recomeçar ou S para sair\n", MAX_Y / 2 + 2, MAX_X / 2 - 15);
-                    break;
-                }
-
-                if (bola.y >= MAX_Y - 1) {
-                    printf("\033[%d;%dHGAME OVER Placar: %d\n", MAX_Y / 2, MAX_X / 2 - 15, placar);
-                    verificarHighScore();
-                    printf("\033[%d;%dHHigh Score: %d\n", MAX_Y / 2 + 1, MAX_X / 2 - 15, highScore);
-                    printf("\033[%d;%dHPressione R para recomeçar ou S para sair\n", MAX_Y / 2 + 2, MAX_X / 2 - 15);
-                    break;
-                }
-
-                wait_ms(25);
-            }
-            while (1) {
-                if (key_pressed()) {
-                    char ch = getchar();
-                    if (ch == 'r' || ch == 'R') {
-                        recomecar = true;
-                        break;
-                    } else if (ch == 's' || ch == 'S') {
-                        liberarTijolos();
-                        return 0;
-                    }
-                }
-            }
-            if (recomecar) {
-                recomecar = false;
-                liberarTijolos();
-                break;
-            }
-        }
-    }
-    liberarTijolos();
-    return 0;
 }
