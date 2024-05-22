@@ -3,8 +3,6 @@ Repositório criado para o projeto do jogo Arcanoid, em C, da cadeira de Program
 
 # Comandos para rodar Arkanoid:
 
-gcc main.c -o main
+make
 
-ls
-
-./main
+./arkanoid
