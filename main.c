@@ -44,6 +44,7 @@ void salvarHighScore();
 void carregarHighScore();
 void verificarHighScore();
 void drawGame();
+void apresentarMensagem();
 
 void inicializar() {
   screenInit(1);
@@ -79,6 +80,9 @@ void loopJogo() {
         jogoAtivo = false;
       }
       timerUpdateTimer(FRAME_DELAY);
+    }
+    if (!jogoAtivo) {
+      apresentarMensagem();
     }
   }
 }
@@ -207,15 +211,26 @@ void salvarHighScore() {
   }
 }
 
+void apresentarMensagem() {
+  char escolha;
+  printf("Pressione S para Sair ou C para Continuar: ");
+  scanf(" %c", &escolha);
+  if (escolha == 'S' || escolha == 's') {
+    finalizar();
+    exit(0);
+  } else if (escolha == 'C' || escolha == 'c') {
+    inicializar();
+    loopJogo();
+  } else {
+    printf("Escolha inválida.\n");
+    apresentarMensagem();
+  }
+}
+
 int main(void) {
   srand(time(NULL));
   inicializar();
   loopJogo();
   finalizar();
-  if (tijolos == NULL || bola.y >= MAX_Y) {
-    printf("Game Over. Placar final: %d\nHighscore: %d\n", placar, highScore);
-  } else {
-    printf("Parabéns, você venceu!\nPlacar final: %d\nHighscore: %d\n", placar, highScore);
-  }
   return 0;
 }
