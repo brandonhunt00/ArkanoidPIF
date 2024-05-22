@@ -83,15 +83,6 @@ void loopJogo() {
   }
 }
 
-int main(void) {
-  srand(time(NULL));
-  inicializar();
-  loopJogo();
-  finalizar();
-  printf("Fim do jogo. Placar final: %d\n", placar);
-  return 0;
-}
-
 void drawGame() {
   screenClear();
   printarPlacar();
@@ -208,7 +199,23 @@ void carregarHighScore() {
 void salvarHighScore() {
   FILE *file = fopen("highscore.txt", "w");
   if (file) {
+    if (placar > highScore) {
+      highScore = placar;
+    }
     fprintf(file, "%d", highScore);
     fclose(file);
   }
+}
+
+int main(void) {
+  srand(time(NULL));
+  inicializar();
+  loopJogo();
+  finalizar();
+  if (tijolos == NULL || bola.y >= MAX_Y) {
+    printf("Game Over. Placar final: %d\nHighscore: %d\n", placar, highScore);
+  } else {
+    printf("Parabéns, você venceu!\nPlacar final: %d\nHighscore: %d\n", placar, highScore);
+  }
+  return 0;
 }
