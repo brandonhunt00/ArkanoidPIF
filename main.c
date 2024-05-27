@@ -11,12 +11,12 @@
 #define MAX_X 79
 #define MIN_Y 1
 #define MAX_Y 23
-#define RAQUETE_SIZE 10
-#define NUMERO_DE_TIJOLOS 45 // 15 tijolos por fileira * 3 fileiras
+#define TAM_RAQUETE 10
+#define NUM_TIJOLOS 45
 #define FPS 60
-#define FRAME_DELAY (1000 / FPS)
+#define DELAY_FRAME (1000 / FPS)
 
-typedef struct {
+typedef struct Objeto{
   double x;
   double y;
   double velX;
@@ -45,16 +45,16 @@ void carregarHighScore();
 void verificarHighScore();
 void drawGame();
 void apresentarMensagem();
-void printCentered(char *text, int y);
+void printarCentralizado(char *text, int y);
 
 void inicializar() {
   screenInit(1);
   keyboardInit();
   carregarHighScore();
   inicializarTijolos();
-  raquete.x = (MAX_X / 2) - (RAQUETE_SIZE / 2);
+  raquete.x = (MAX_X / 2) - (TAM_RAQUETE / 2);
   raquete.y = MAX_Y - 2;
-  bola.x = raquete.x + (RAQUETE_SIZE / 2);
+  bola.x = raquete.x + (TAM_RAQUETE / 2);
   bola.y = raquete.y - 1;
   bola.velX = 0.28;
   bola.velY = -0.28;
@@ -71,7 +71,7 @@ void finalizar() {
 
 void loopJogo() {
   bool jogoAtivo = true;
-  timerInit(FRAME_DELAY);
+  timerInit(DELAY_FRAME);
   while (jogoAtivo) {
     if (timerTimeOver()) {
       moverRaquete();
@@ -80,7 +80,7 @@ void loopJogo() {
       if (tijolos == NULL || bola.y >= MAX_Y) {
         jogoAtivo = false;
       }
-      timerUpdateTimer(FRAME_DELAY);
+      timerUpdateTimer(DELAY_FRAME);
     }
     if (!jogoAtivo) {
       apresentarMensagem();
@@ -92,7 +92,7 @@ void drawGame() {
   screenClear();
   printarPlacar();
   printf("\033[%d;%dH", (int)raquete.y, (int)raquete.x);
-  for (int i = 0; i < RAQUETE_SIZE; i++) {
+  for (int i = 0; i < TAM_RAQUETE; i++) {
     printf("=");
   }
   printf("\033[%d;%dHo", (int)bola.y, (int)bola.x);
@@ -119,7 +119,7 @@ void moverBola() {
     bola.velY = -bola.velY;
   }
   if (bola.y == raquete.y - 1 && bola.x >= raquete.x &&
-      bola.x <= raquete.x + RAQUETE_SIZE) {
+      bola.x <= raquete.x + TAM_RAQUETE) {
     bola.velY = -bola.velY;
   }
   Tijolo *prev = NULL;
@@ -152,7 +152,7 @@ void moverRaquete() {
       readch();
       switch (readch()) {
       case 'C':
-        if (raquete.x < MAX_X - RAQUETE_SIZE)
+        if (raquete.x < MAX_X - TAM_RAQUETE)
           raquete.x += 2;
         break;
       case 'D':
@@ -215,16 +215,16 @@ void salvarHighScore() {
 void apresentarMensagem() {
   screenClear();
   if (tijolos == NULL) {
-    printCentered("Parabéns, você venceu!", MAX_Y / 2 - 1);
+    printarCentralizado("Parabéns, você venceu!", MAX_Y / 2 - 1);
   } else {
-    printCentered("Game Over", MAX_Y / 2 - 1);
+    printarCentralizado("Game Over", MAX_Y / 2 - 1);
   }
   char message[50];
   sprintf(message, "Score: %d", placar);
-  printCentered(message, MAX_Y / 2);
+  printarCentralizado(message, MAX_Y / 2);
   sprintf(message, "High Score: %d", highScore);
-  printCentered(message, MAX_Y / 2 + 1);
-  printCentered("Pressione S para sair ou C para continuar", MAX_Y / 2 + 3);
+  printarCentralizado(message, MAX_Y / 2 + 1);
+  printarCentralizado("Pressione S para sair ou C para continuar", MAX_Y / 2 + 3);
 
   char escolha;
   do {
@@ -240,7 +240,7 @@ void apresentarMensagem() {
   }
 }
 
-void printCentered(char *text, int y) {
+void printarCentralizado(char *text, int y) {
   int len = strlen(text);
   int x = (MAX_X - len) / 2;
   printf("\033[%d;%dH%s", y, x, text);
