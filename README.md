@@ -18,10 +18,6 @@ Arkanoid é um jogo de habilidade onde o jogador controla uma raquete que rebate
 
 # Comandos do Jogo
 Use as setas direcionais esquerda e direita para mover a raquete para a esquerda e para a direita, respectivamente.
-Pressione a tecla R para reiniciar o jogo a qualquer momento.
-Pressione a tecla S para sair do jogo.
-
-# Contribuição
-Se você quiser contribuir para este projeto, fique à vontade para abrir uma issue ou enviar um pull request. Estamos abertos a sugestões e melhorias!
-
-Divirta-se jogando ArkanoidPIF!
+Após o término da partida, você terá duas opções:
+- Pressionar a tecla C para continuar a jogar o jogo.
+- Pressionar a tecla S para sair do jogo.
