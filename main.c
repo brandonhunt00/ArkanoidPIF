@@ -71,12 +71,12 @@ void drawGame() {
   }
   printf("\033[%d;%dHo", (int)bola.y, (int)bola.x);
 
-  Tijolo *current = tijolos;
-  while (current) {
-    if (current->durabilidade > 0) {
-      printf("\033[%d;%dH[]", (int)current->y, (int)current->x);
+  Tijolo *atual = tijolos;
+  while (atual) {
+    if (atual->durabilidade > 0) {
+      printf("\033[%d;%dH[]", (int)atual->y, (int)atual->x);
     }
-    current = current->prox;
+    atual = atual->prox;
   }
   screenUpdate();
 }
@@ -115,26 +115,26 @@ void moverBola() {
       bola.x <= raquete.x + TAM_RAQUETE) {
     bola.velY = -bola.velY;
   }
-  Tijolo *prev = NULL;
-  Tijolo *current = tijolos;
-  while (current) {
-    if (bola.x >= current->x && bola.x <= current->x + 4 &&
-        bola.y >= current->y && bola.y <= current->y + 1) {
-      current->durabilidade--;
+  Tijolo *anterior = NULL;
+  Tijolo *atual = tijolos;
+  while (atual) {
+    if (bola.x >= atual->x && bola.x <= atual->x + 4 &&
+        bola.y >= atual->y && bola.y <= atual->y + 1) {
+      atual->durabilidade--;
       bola.velY = -bola.velY;
-      if (current->durabilidade == 0) {
-        if (prev) {
-          prev->prox = current->prox;
+      if (atual->durabilidade == 0) {
+        if (anterior) {
+          anterior->prox = atual->prox;
         } else {
-          tijolos = current->prox;
+          tijolos = atual->prox;
         }
-        free(current);
+        free(atual);
         placarAtual += 5;
       }
       break;
     }
-    prev = current;
-    current = current->prox;
+    anterior = atual;
+    atual = atual->prox;
   }
 }
 
@@ -222,9 +222,9 @@ void apresentarMensagem() {
     printarCentralizado("Game Over", MAX_Y / 2 - 1);
   }
   char message[50];
-  sprintf(message, "Score: %d", placarAtual);
+  sprintf(message, "Score Atual: %d", placarAtual);
   printarCentralizado(message, MAX_Y / 2);
-  sprintf(message, "High Score: %d", highScore);
+  sprintf(message, "HighScore: %d", highScore);
   printarCentralizado(message, MAX_Y / 2 + 1);
   printarCentralizado("Pressione S para sair ou C para continuar", MAX_Y / 2 + 3);
 
