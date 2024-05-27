@@ -45,6 +45,7 @@ void carregarHighScore();
 void verificarHighScore();
 void drawGame();
 void apresentarMensagem();
+void printCentered(char *text, int y);
 
 void inicializar() {
   screenInit(1);
@@ -212,19 +213,37 @@ void salvarHighScore() {
 }
 
 void apresentarMensagem() {
+  screenClear();
+  if (tijolos == NULL) {
+    printCentered("Parabéns, você venceu!", MAX_Y / 2 - 1);
+  } else {
+    printCentered("Game Over", MAX_Y / 2 - 1);
+  }
+  char message[50];
+  sprintf(message, "Score: %d", placar);
+  printCentered(message, MAX_Y / 2);
+  sprintf(message, "High Score: %d", highScore);
+  printCentered(message, MAX_Y / 2 + 1);
+  printCentered("Pressione S para sair ou C para continuar", MAX_Y / 2 + 3);
+
   char escolha;
-  printf("Pressione S para Sair ou C para Continuar: ");
-  scanf(" %c", &escolha);
+  do {
+    scanf(" %c", &escolha);
+  } while (escolha != 'S' && escolha != 's' && escolha != 'C' && escolha != 'c');
+
   if (escolha == 'S' || escolha == 's') {
     finalizar();
     exit(0);
   } else if (escolha == 'C' || escolha == 'c') {
     inicializar();
     loopJogo();
-  } else {
-    printf("Escolha inválida.\n");
-    apresentarMensagem();
   }
+}
+
+void printCentered(char *text, int y) {
+  int len = strlen(text);
+  int x = (MAX_X - len) / 2;
+  printf("\033[%d;%dH%s", y, x, text);
 }
 
 int main(void) {
