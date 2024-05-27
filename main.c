@@ -1,6 +1,7 @@
 #include "keyboard.h"
 #include "screen.h"
 #include "timer.h"
+#include <string.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -61,11 +62,23 @@ void inicializar() {
   screenClear();
 }
 
-void finalizar() {
-  liberarTijolos();
-  keyboardDestroy();
-  screenDestroy();
-  salvarHighScore();
+void drawGame() {
+  screenClear();
+  printarPlacar();
+  printf("\033[%d;%dH", (int)raquete.y, (int)raquete.x);
+  for (int i = 0; i < TAM_RAQUETE; i++) {
+    printf("=");
+  }
+  printf("\033[%d;%dHo", (int)bola.y, (int)bola.x);
+
+  Tijolo *current = tijolos;
+  while (current) {
+    if (current->durabilidade > 0) {
+      printf("\033[%d;%dH[]", (int)current->y, (int)current->x);
+    }
+    current = current->prox;
+  }
+  screenUpdate();
 }
 
 void loopJogo() {
@@ -85,25 +98,6 @@ void loopJogo() {
       apresentarMensagem();
     }
   }
-}
-
-void drawGame() {
-  screenClear();
-  printarPlacar();
-  printf("\033[%d;%dH", (int)raquete.y, (int)raquete.x);
-  for (int i = 0; i < TAM_RAQUETE; i++) {
-    printf("=");
-  }
-  printf("\033[%d;%dHo", (int)bola.y, (int)bola.x);
-
-  Tijolo *current = tijolos;
-  while (current) {
-    if (current->durabilidade > 0) {
-      printf("\033[%d;%dH[]", (int)current->y, (int)current->x);
-    }
-    current = current->prox;
-  }
-  screenUpdate();
 }
 
 void moverBola() {
@@ -188,7 +182,16 @@ void liberarTijolos() {
   }
 }
 
-void printarPlacar() { printf("\033[%d;%dHPlacar: %d", 0, 0, placarAtual); }
+void finalizar() {
+  liberarTijolos();
+  keyboardDestroy();
+  screenDestroy();
+  salvarHighScore();
+}
+
+void printarPlacar() { 
+  printf("\033[%d;%dHPlacar: %d", 0, 0, placarAtual); 
+}
 
 void escreverHighScore() {
   FILE *file = fopen("highscore.txt", "r");
@@ -246,7 +249,6 @@ void printarCentralizado(char *text, int y) {
 }
 
 int main(void) {
-  srand(time(NULL));
   inicializar();
   loopJogo();
   finalizar();
