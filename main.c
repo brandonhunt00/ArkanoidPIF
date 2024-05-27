@@ -32,17 +32,16 @@ typedef struct Tijolo {
 
 Objeto raquete, bola;
 Tijolo *tijolos = NULL;
-int placar = 0, highScore = 0;
+int placarAtual = 0, highScore = 0;
 
 void wait_ms(int ms);
-void inicializarTijolos();
+void printarTijolos();
 void liberarTijolos();
 void moverRaquete();
 void moverBola();
 void printarPlacar();
 void salvarHighScore();
-void carregarHighScore();
-void verificarHighScore();
+void escreverHighScore();
 void drawGame();
 void apresentarMensagem();
 void printarCentralizado(char *text, int y);
@@ -50,15 +49,15 @@ void printarCentralizado(char *text, int y);
 void inicializar() {
   screenInit(1);
   keyboardInit();
-  carregarHighScore();
-  inicializarTijolos();
+  escreverHighScore();
+  printarTijolos();
   raquete.x = (MAX_X / 2) - (TAM_RAQUETE / 2);
   raquete.y = MAX_Y - 2;
   bola.x = raquete.x + (TAM_RAQUETE / 2);
   bola.y = raquete.y - 1;
   bola.velX = 0.28;
   bola.velY = -0.28;
-  placar = 0;
+  placarAtual = 0;
   screenClear();
 }
 
@@ -136,7 +135,7 @@ void moverBola() {
           tijolos = current->prox;
         }
         free(current);
-        placar += 5;
+        placarAtual += 5;
       }
       break;
     }
@@ -164,7 +163,7 @@ void moverRaquete() {
   }
 }
 
-void inicializarTijolos() {
+void printarTijolos() {
   int linhas = 3;
   int tijolos_por_linha = (MAX_X - 10) / 5;
   for (int linha = 0; linha < linhas; linha++) {
@@ -189,9 +188,9 @@ void liberarTijolos() {
   }
 }
 
-void printarPlacar() { printf("\033[%d;%dHPlacar: %d", 0, 0, placar); }
+void printarPlacar() { printf("\033[%d;%dHPlacar: %d", 0, 0, placarAtual); }
 
-void carregarHighScore() {
+void escreverHighScore() {
   FILE *file = fopen("highscore.txt", "r");
   if (file) {
     fscanf(file, "%d", &highScore);
@@ -204,8 +203,8 @@ void carregarHighScore() {
 void salvarHighScore() {
   FILE *file = fopen("highscore.txt", "w");
   if (file) {
-    if (placar > highScore) {
-      highScore = placar;
+    if (placarAtual > highScore) {
+      highScore = placarAtual;
     }
     fprintf(file, "%d", highScore);
     fclose(file);
@@ -220,7 +219,7 @@ void apresentarMensagem() {
     printarCentralizado("Game Over", MAX_Y / 2 - 1);
   }
   char message[50];
-  sprintf(message, "Score: %d", placar);
+  sprintf(message, "Score: %d", placarAtual);
   printarCentralizado(message, MAX_Y / 2);
   sprintf(message, "High Score: %d", highScore);
   printarCentralizado(message, MAX_Y / 2 + 1);
